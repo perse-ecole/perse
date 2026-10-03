@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Persé — La Persévérance</title>
+  <meta name="description" content="Espace personnel et Espace RH de La Persévérance.">
+  <meta name="theme-color" content="#0e1a2b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Persé">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <style>
+    :root{--navy:#0e1a2b;--navy-2:#17324a;--gold:#c4b48a;--paper:#fffcf8}
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100vh;height:100dvh;overflow:hidden;background:var(--navy);
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--paper)}
+    #cadre{position:fixed;
+      top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);
+      bottom:env(safe-area-inset-bottom,0px);left:env(safe-area-inset-left,0px);
+      background:#fff}
+    #perse{display:block;width:100%;height:100%;border:0;margin:0;padding:0;background:#fff}
+    .ecran{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:18px;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));
+      background:var(--navy);text-align:center;z-index:10;transition:opacity .35s ease}
+    .ecran[hidden]{display:none}
+    .ecran.fondu{opacity:0;pointer-events:none}
+    .logo{width:84px;height:84px;border-radius:22px;box-shadow:0 10px 30px #0006}
+    .titre{font-size:30px;font-weight:700;letter-spacing:.5px;color:var(--gold);margin:0}
+    .sous{font-size:15px;opacity:.8;margin:0;max-width:320px;line-height:1.45}
+    .roue{width:28px;height:28px;border-radius:50%;border:3px solid #ffffff33;border-top-color:var(--gold);
+      animation:tourne 0.9s linear infinite}
+    @keyframes tourne{to{transform:rotate(360deg)}}
+    .actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+    .bouton{appearance:none;border:0;border-radius:999px;padding:12px 20px;font:inherit;font-weight:600;
+      background:var(--gold);color:var(--navy);text-decoration:none;cursor:pointer}
+    .bouton.secondaire{background:transparent;color:var(--paper);border:1px solid #ffffff55}
+    #bandeau{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:20;
+      padding:12px 16px;border-radius:12px;background:#b42318;color:#fff;font-size:14px;text-align:center;
+      box-shadow:0 8px 24px #0005}
+    @media (prefers-reduced-motion:reduce){.roue{animation:none}.ecran{transition:none}}
+  </style>
+</head>
+<body>
+  <div id="cadre">
+    <iframe id="perse" title="Persé" allow="clipboard-write; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+
+  <div id="chargement" class="ecran" role="status" aria-live="polite">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <p class="titre">Persé</p>
+    <div class="roue" aria-hidden="true"></div>
+    <p class="sous" id="chargementTexte">Chargement…</p>
+    <div class="actions" id="chargementActions" hidden>
+      <button class="bouton" type="button" data-action="recharger">Réessayer</button>
+      <a class="bouton secondaire" id="lienNavigateur" target="_blank" rel="noopener">Ouvrir dans le navigateur</a>
+    </div>
+  </div>
+
+  <div id="horsLigne" class="ecran" hidden role="alert">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <p class="titre">Persé</p>
+    <p class="sous">Pas de connexion Internet.<br>Vérifiez le Wi-Fi ou les données mobiles, puis réessayez.</p>
+    <div class="actions">
+      <button class="bouton" type="button" data-action="recharger">Réessayer</button>
+    </div>
+  </div>
+
+  <div id="bandeau" hidden role="alert">Connexion perdue. Persé reprendra dès le retour du réseau.</div>
+
+  <script>
+    (function () {
+      var URL_PERSE = 'https://script.google.com/macros/s/AKfycbwn5KaqGAx-X1njorr4yquwyPJ9fHY-dZf9W8EaQKQuccaq4b3JcfpGzDtyCfIQ--8f3Q/exec';
+      var PARAMS_TRANSMIS = ['ecran', 'espace'];
+      var DELAI_LENT_MS = 20000;
+
+      var iframe = document.getElementById('perse');
+      var chargement = document.getElementById('chargement');
+      var chargementTexte = document.getElementById('chargementTexte');
+      var chargementActions = document.getElementById('chargementActions');
+      var horsLigne = document.getElementById('horsLigne');
+      var bandeau = document.getElementById('bandeau');
+      var charge = false;
+      var minuteur = null;
+
+      function adresseCible() {
+        var entree = new URLSearchParams(location.search);
+        var sortie = new URLSearchParams();
+        PARAMS_TRANSMIS.forEach(function (cle) {
+          var v = entree.get(cle);
+          if (v && /^[\w-]{1,40}$/.test(v)) sortie.set(cle, v);
+        });
+        var q = sortie.toString();
+        return URL_PERSE + (q ? '?' + q : '');
+      }
+
+      function afficherChargement() {
+        chargement.hidden = false;
+        chargement.classList.remove('fondu');
+        chargementTexte.textContent = 'Chargement…';
+        chargementActions.hidden = true;
+      }
+
+      function masquerChargement() {
+        chargement.classList.add('fondu');
+        setTimeout(function () { if (charge) chargement.hidden = true; }, 400);
+      }
+
+      function demarrer() {
+        clearTimeout(minuteur);
+        if (!navigator.onLine) {
+          horsLigne.hidden = false;
+          chargement.hidden = true;
+          return;
+        }
+        horsLigne.hidden = true;
+        charge = false;
+        afficherChargement();
+        iframe.src = adresseCible();
+        minuteur = setTimeout(function () {
+          if (charge) return;
+          chargementTexte.textContent = 'Le chargement prend plus de temps que prévu.';
+          chargementActions.hidden = false;
+        }, DELAI_LENT_MS);
+      }
+
+      iframe.addEventListener('load', function () {
+        if (!iframe.getAttribute('src')) return;
+        charge = true;
+        clearTimeout(minuteur);
+        masquerChargement();
+      });
+
+      document.addEventListener('click', function (e) {
+        var cible = e.target.closest('[data-action="recharger"]');
+        if (cible) demarrer();
+      });
+
+      window.addEventListener('offline', function () {
+        if (charge) bandeau.hidden = false;
+        else demarrer();
+      });
+      window.addEventListener('online', function () {
+        bandeau.hidden = true;
+        if (!charge) demarrer();
+      });
+
+      document.getElementById('lienNavigateur').href = URL_PERSE;
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function () {});
+        });
+      }
+
+      demarrer();
+    })();
+  </script>
+</body>
+</html>
