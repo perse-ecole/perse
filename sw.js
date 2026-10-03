@@ -1,7 +1,7 @@
 /* Service worker de l'appli Persé : met en cache uniquement la coquille
    (cette page, le manifest, les icônes). Les pages Persé servies par Google
    (script.google.com, googleusercontent.com) ne sont jamais mises en cache. */
-const CACHE = 'perse-coquille-v1';
+const CACHE = 'perse-coquille-v2';
 const COQUILLE = [
   './',
   './index.html',

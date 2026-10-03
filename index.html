@@ -16,20 +16,14 @@
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <style>
-    :root{--navy:#0e1a2b;--navy-2:#17324a;--gold:#c4b48a;--paper:#fffcf8}
+    :root{--navy:#0e1a2b;--gold:#c4b48a;--paper:#fffcf8}
     *{box-sizing:border-box}
     html,body{margin:0;height:100vh;height:100dvh;overflow:hidden;background:var(--navy);
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--paper)}
-    #cadre{position:fixed;
-      top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px);
-      bottom:env(safe-area-inset-bottom,0px);left:env(safe-area-inset-left,0px);
-      background:#fff}
-    #perse{display:block;width:100%;height:100%;border:0;margin:0;padding:0;background:#fff}
     .ecran{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:18px;padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px));
-      background:var(--navy);text-align:center;z-index:10;transition:opacity .35s ease}
+      background:var(--navy);text-align:center}
     .ecran[hidden]{display:none}
-    .ecran.fondu{opacity:0;pointer-events:none}
     .logo{width:84px;height:84px;border-radius:22px;box-shadow:0 10px 30px #0006}
     .titre{font-size:30px;font-weight:700;letter-spacing:.5px;color:var(--gold);margin:0}
     .sous{font-size:15px;opacity:.8;margin:0;max-width:320px;line-height:1.45}
@@ -37,28 +31,32 @@
       animation:tourne 0.9s linear infinite}
     @keyframes tourne{to{transform:rotate(360deg)}}
     .actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+    .actions[hidden]{display:none}
     .bouton{appearance:none;border:0;border-radius:999px;padding:12px 20px;font:inherit;font-weight:600;
       background:var(--gold);color:var(--navy);text-decoration:none;cursor:pointer}
+    .bouton[hidden]{display:none}
     .bouton.secondaire{background:transparent;color:var(--paper);border:1px solid #ffffff55}
-    #bandeau{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:20;
-      padding:12px 16px;border-radius:12px;background:#b42318;color:#fff;font-size:14px;text-align:center;
-      box-shadow:0 8px 24px #0005}
-    @media (prefers-reduced-motion:reduce){.roue{animation:none}.ecran{transition:none}}
+    @media (prefers-reduced-motion:reduce){.roue{animation:none}}
   </style>
 </head>
 <body>
-  <div id="cadre">
-    <iframe id="perse" title="Persé" allow="clipboard-write; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-  </div>
-
   <div id="chargement" class="ecran" role="status" aria-live="polite">
     <img class="logo" src="icons/icon-192.png" alt="">
     <p class="titre">Persé</p>
     <div class="roue" aria-hidden="true"></div>
-    <p class="sous" id="chargementTexte">Chargement…</p>
-    <div class="actions" id="chargementActions" hidden>
-      <button class="bouton" type="button" data-action="recharger">Réessayer</button>
-      <a class="bouton secondaire" id="lienNavigateur" target="_blank" rel="noopener">Ouvrir dans le navigateur</a>
+    <p class="sous">Ouverture de Persé…</p>
+    <div class="actions" id="secours" hidden>
+      <a class="bouton" id="lienPerse">Ouvrir Persé</a>
+    </div>
+  </div>
+
+  <div id="accueil" class="ecran" hidden>
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <p class="titre">Persé</p>
+    <p class="sous" id="consigne">Installez Persé sur votre téléphone : menu ⋮ de Chrome, puis « Installer l'application ».</p>
+    <div class="actions">
+      <button class="bouton" type="button" id="installer" hidden>Installer l'appli</button>
+      <a class="bouton secondaire" id="lienAccueil">Ouvrir Persé</a>
     </div>
   </div>
 
@@ -67,26 +65,29 @@
     <p class="titre">Persé</p>
     <p class="sous">Pas de connexion Internet.<br>Vérifiez le Wi-Fi ou les données mobiles, puis réessayez.</p>
     <div class="actions">
-      <button class="bouton" type="button" data-action="recharger">Réessayer</button>
+      <button class="bouton" type="button" id="reessayer">Réessayer</button>
     </div>
   </div>
-
-  <div id="bandeau" hidden role="alert">Connexion perdue. Persé reprendra dès le retour du réseau.</div>
 
   <script>
     (function () {
       var URL_PERSE = 'https://script.google.com/macros/s/AKfycbwn5KaqGAx-X1njorr4yquwyPJ9fHY-dZf9W8EaQKQuccaq4b3JcfpGzDtyCfIQ--8f3Q/exec';
       var PARAMS_TRANSMIS = ['ecran', 'espace'];
-      var DELAI_LENT_MS = 20000;
+      var DELAI_REDIRECTION_MS = 400;
+      var DELAI_SECOURS_MS = 4000;
 
-      var iframe = document.getElementById('perse');
       var chargement = document.getElementById('chargement');
-      var chargementTexte = document.getElementById('chargementTexte');
-      var chargementActions = document.getElementById('chargementActions');
+      var accueil = document.getElementById('accueil');
       var horsLigne = document.getElementById('horsLigne');
-      var bandeau = document.getElementById('bandeau');
-      var charge = false;
-      var minuteur = null;
+      var secours = document.getElementById('secours');
+      var boutonInstaller = document.getElementById('installer');
+      var minuteurSecours = null;
+      var invitationInstall = null;
+
+      var installee = window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
+        window.navigator.standalone === true;
+      var iphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
       function adresseCible() {
         var entree = new URLSearchParams(location.search);
@@ -99,63 +100,59 @@
         return URL_PERSE + (q ? '?' + q : '');
       }
 
-      function afficherChargement() {
-        chargement.hidden = false;
-        chargement.classList.remove('fondu');
-        chargementTexte.textContent = 'Chargement…';
-        chargementActions.hidden = true;
-      }
-
-      function masquerChargement() {
-        chargement.classList.add('fondu');
-        setTimeout(function () { if (charge) chargement.hidden = true; }, 400);
-      }
-
       function demarrer() {
-        clearTimeout(minuteur);
+        clearTimeout(minuteurSecours);
         if (!navigator.onLine) {
-          horsLigne.hidden = false;
           chargement.hidden = true;
+          horsLigne.hidden = false;
           return;
         }
         horsLigne.hidden = true;
-        charge = false;
-        afficherChargement();
-        iframe.src = adresseCible();
-        minuteur = setTimeout(function () {
-          if (charge) return;
-          chargementTexte.textContent = 'Le chargement prend plus de temps que prévu.';
-          chargementActions.hidden = false;
-        }, DELAI_LENT_MS);
+        var cible = adresseCible();
+        document.getElementById('lienPerse').href = cible;
+        document.getElementById('lienAccueil').href = cible;
+        if (!installee) {
+          chargement.hidden = true;
+          accueil.hidden = false;
+          return;
+        }
+        accueil.hidden = true;
+        chargement.hidden = false;
+        secours.hidden = true;
+        setTimeout(function () { location.replace(cible); }, DELAI_REDIRECTION_MS);
+        minuteurSecours = setTimeout(function () { secours.hidden = false; }, DELAI_SECOURS_MS);
       }
 
-      iframe.addEventListener('load', function () {
-        if (!iframe.getAttribute('src')) return;
-        charge = true;
-        clearTimeout(minuteur);
-        masquerChargement();
+      if (iphone) {
+        document.getElementById('consigne').textContent =
+          'Installez Persé sur votre iPhone : dans Safari, touchez Partager puis « Sur l\u2019écran d\u2019accueil ».';
+      }
+
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        invitationInstall = e;
+        boutonInstaller.hidden = false;
+      });
+      boutonInstaller.addEventListener('click', function () {
+        if (!invitationInstall) return;
+        invitationInstall.prompt();
+        invitationInstall.userChoice.then(function () {
+          invitationInstall = null;
+          boutonInstaller.hidden = true;
+        });
+      });
+      window.addEventListener('appinstalled', function () {
+        boutonInstaller.hidden = true;
+        document.getElementById('consigne').textContent =
+          'Persé est installé. Ouvrez-le depuis l\u2019icône de votre écran d\u2019accueil.';
       });
 
-      document.addEventListener('click', function (e) {
-        var cible = e.target.closest('[data-action="recharger"]');
-        if (cible) demarrer();
-      });
-
-      window.addEventListener('offline', function () {
-        if (charge) bandeau.hidden = false;
-        else demarrer();
-      });
-      window.addEventListener('online', function () {
-        bandeau.hidden = true;
-        if (!charge) demarrer();
-      });
-
-      document.getElementById('lienNavigateur').href = URL_PERSE;
+      document.getElementById('reessayer').addEventListener('click', demarrer);
+      window.addEventListener('online', function () { if (!horsLigne.hidden) demarrer(); });
+      window.addEventListener('pageshow', function (e) { if (e.persisted) demarrer(); });
 
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('sw.js').catch(function () {});
-        });
+        navigator.serviceWorker.register('sw.js').catch(function () {});
       }
 
       demarrer();
